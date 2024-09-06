@@ -1,7 +1,7 @@
 import cv2
 import time
 
-def capture_video(filename="captured_video.mp4", duration=5, fps=30):
+def capture_video(output_path, duration=5, fps=30):
     # Open the default camera (index 0)
     cap = cv2.VideoCapture(0)
     
@@ -11,8 +11,7 @@ def capture_video(filename="captured_video.mp4", duration=5, fps=30):
     
     # Define the codec and create a VideoWriter object to write frames to a file
     # Use 'mp4v' codec to create an MP4 file
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    output_path = f"data_storage/video/{filename}"  
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
     out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
     
     # Calculate the end time for the recording

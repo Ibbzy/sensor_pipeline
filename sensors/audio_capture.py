@@ -1,7 +1,7 @@
 import pyaudio
 import wave
 
-def capture_audio(filename="output.wav", duration=5):
+def capture_audio(output_path, duration=5):
     chunk = 1024  # Record in chunks of 1024 samples
     sample_format = pyaudio.paInt16  # 16 bits per sample
     channels = 1
@@ -12,16 +12,15 @@ def capture_audio(filename="output.wav", duration=5):
                     frames_per_buffer=chunk, input=True)
 
     frames = []  # Initialize array to store frames
-
+    print(f"Recording started for {duration} seconds")
     for _ in range(0, int(fs / chunk * duration)):
         data = stream.read(chunk)
         frames.append(data)
-
+    print(f"Recording done")
     stream.stop_stream()
     stream.close()
     p.terminate()
     
-    output_path = f"data_storage/audio/{filename}"  
     # Save the recorded data as a WAV file
     wf = wave.open(output_path, 'wb')
     wf.setnchannels(channels)
