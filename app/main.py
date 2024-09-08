@@ -35,6 +35,11 @@ PROCESSING_MAP = {
     "image": ImageProcessingPipeline(),
 }
 
+Model_MAP = {
+    "video": ["no model"],
+    "audio": ["no model","anotherModel"],
+    "image": ["no model","vision"],
+}
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -53,6 +58,16 @@ app.add_middleware(
 def health_check():
     """Basic health check endpoint."""
     return {"status": "Healthy"}
+
+
+@app.get("/models/")
+async def get_models_for_sensor(sensor_type: str):
+    """Returns available models based on the selected sensor."""
+    if sensor_type not in SUPPORTED_SENSOR_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported sensor type")
+    
+    available_models = Model_MAP.get(sensor_type, ["none"])
+    return {"models": available_models}
 
 @app.get("/capture/")
 async def capture_sensor_data(sensor_type: str):
@@ -73,7 +88,8 @@ async def capture_sensor_data(sensor_type: str):
 @app.post("/upload/")
 async def upload_data_endpoint(
     file: UploadFile = File(...), 
-    sensor_type: str = Form(...)
+    sensor_type: str = Form(...),
+    model: str = Form(...) 
 ):
     
     if sensor_type not in PROCESSING_MAP:
