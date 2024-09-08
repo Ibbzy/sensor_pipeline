@@ -1,10 +1,11 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sensors.video_capture import capture_video
-from sensors.audio_capture import capture_audio
-from sensors.image_capture import capture_image
-from app.sensor_data_handler import capture_and_upload_data, upload_sensor_data
-from models.image_processing import process_image
+
+from sensors.video_sensor import VideoSensor
+from sensors.audio_sensor import AudioSensor
+from sensors.image_sensor import ImageSensor
+from processing.image_processing import ImageProcessingPipeline
+from app.sensor_data_handler import upload_sensor_data
 from app.util import generate_filename
 
 import aiofiles
@@ -14,11 +15,26 @@ import logging
 
 
 SUPPORTED_SENSOR_TYPES = ["video", "audio", "image"]
-SENSOR_TYPE_PROCESSORS = {
+
+
+EXTENSION_MAP = {
+    "video": "mp4",
+    "audio": "wav",
+    "image": "jpg",
+}
+
+SENSOR_MAP = {
+    "video": VideoSensor(),
+    "audio": AudioSensor(),
+    "image": ImageSensor(),
+}
+
+PROCESSING_MAP = {
     "video": None,
     "audio": None,
-    "image": process_image
+    "image": ImageProcessingPipeline(),
 }
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,47 +54,42 @@ def health_check():
     """Basic health check endpoint."""
     return {"status": "Healthy"}
 
+@app.get("/capture/")
+async def capture_sensor_data(sensor_type: str):
+    
+    if sensor_type not in SENSOR_MAP:
+        raise HTTPException(status_code=400, detail="Unsupported sensor type")
+    
+    file_extension = EXTENSION_MAP.get(sensor_type)
+    filename = generate_filename(sensor_type, file_extension)
+    file_location = f"local_storage/{sensor_type}/{filename}"
+    
+    sensor = SENSOR_MAP.get(sensor_type)
+    sensor.capture(file_location)
+    file_url = upload_sensor_data(file_location, sensor_type)
+    return {"message": f"{sensor_type.capitalize()} captured and uploaded successfully", "url": file_url}
+
+
 @app.post("/upload/")
 async def upload_data_endpoint(
     file: UploadFile = File(...), 
     sensor_type: str = Form(...)
 ):
     
-    if sensor_type not in SUPPORTED_SENSOR_TYPES:
-        return {"message": "Unsupported sensor type"}
+    if sensor_type not in PROCESSING_MAP:
+        raise HTTPException(status_code=400, detail="Unsupported sensor type")
 
     # Save the file locally
-    _, extension = os.path.splitext(file.filename)
-    filename = generate_filename(sensor_type, extension)
-    file_path = f"local_storage/{sensor_type}/{filename}"
-    async with aiofiles.open(file_path, 'wb') as out_file:
+    _, file_extension = os.path.splitext(file.filename)
+    filename = generate_filename(sensor_type, file_extension)
+    file_location = f"local_storage/{sensor_type}/{filename}"
+    async with aiofiles.open(file_location, 'wb') as out_file:
         content = await file.read()  # Read the file in chunks
         await out_file.write(content)
-    
-    # Process based on sensor type
-    processor = SENSOR_TYPE_PROCESSORS[sensor_type]
-    if processor:
-        processor(file_path)
-    file_url = upload_sensor_data(file_path, sensor_type)
-    return {"url": file_url, "sensor_type": sensor_type, "message": "File uploaded successfully"}
 
+    processing_pipeline = PROCESSING_MAP.get(sensor_type)
+    if processing_pipeline:
+        processing_pipeline.process(file_location)
 
-@app.get("/capture/video")
-def capture_video_endpoint():
-    """Endpoint for capturing video data."""
-    video_url = capture_and_upload_data("video", "mp4", capture_video)
-    return {"message": "Video captured", "url": video_url}
-
-@app.get("/capture/audio")
-def capture_audio_endpoint():
-    """Endpoint for capturing audio data."""
-    audio_url = capture_and_upload_data("audio", "wav", capture_audio)
-    return {"message": "Audio captured", "url": audio_url}
-
-@app.get("/capture/image")
-def capture_image_endpoint(target_labels = None):
-    """Endpoint for capturing image data."""
-    image_url = capture_and_upload_data("image", "jpg", capture_image)
-    _, labels = process_image(image_url, target_labels)
-
-    return {"message": "Image captured successfully", "url": image_url, "labels": labels}
+    file_url = upload_sensor_data(file_location, sensor_type)
+    return {"message": f"{sensor_type.capitalize()} uploaded successfully", "url": file_url}
