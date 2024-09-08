@@ -38,7 +38,7 @@ def upload_sensor_data(local_path: str, sensor_type: str):
             file_url = upload_to_gcs(local_path, BUCKET_NAME, destination_blob_name)
             logging.info(f"{sensor_type.capitalize()} uploaded successfully: {file_url}")
             return file_url
-        return None
+        return local_path
     except Exception as e:
         logging.error(f"Error during {sensor_type} upload: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to upload {sensor_type}: {str(e)}")
@@ -47,4 +47,4 @@ def capture_and_upload_data(sensor_type: str, extension: str, capture_func):
     """Capture and upload sensor data to GCS."""
     local_path = capture_sensor_data(sensor_type, extension, capture_func)
     url = upload_sensor_data(local_path, sensor_type)
-    return url if url else local_path
+    return url

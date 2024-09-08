@@ -3,3 +3,5 @@ uvicorn
 opencv-python 
 pyaudio
 google-cloud-storage
+python-multipart
+aiofiles
